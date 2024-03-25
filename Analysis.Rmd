@@ -144,3 +144,102 @@ lasso_rmse <- sqrt(mean((lasso_pred - data_test$recovery_time)^2))
 lasso_rmse
 
 ```
+
+
+## PLS model
+
+```{r}
+set.seed(2024)
+pls_model <- train(x, y,
+                 method = "pls",
+                 tuneGrid = data.frame(ncomp = 1:17),
+                 trControl = ctrl,
+                 preProcess = c("center", "scale"))
+print(plot(pls_model))
+
+```
+
+
+Finding the RMSE
+
+```{r}
+pls_pred <- predict(pls_model, newdata = x2)
+pls_rmse <- sqrt(mean((pls_pred - data_test$recovery_time)^2))
+pls_rmse
+```
+
+
+## Elastic net model
+
+```{r}
+set.seed(2024)
+enet_model <- train(x, y, 
+                  method = "glmnet",
+                  tuneGrid = expand.grid(alpha = seq(0, 1, length = 21),
+                                         lambda = exp(seq(2, -2, length = 50))),
+                  trControl = ctrl)
+print(plot(enet_model))
+```
+
+
+Finding the RMSE 
+
+```{r}
+enet_pred <- predict(enet_model, newdata = x2)
+enet_rmse <- sqrt(mean((enet_pred - data_test$recovery_time)^2))
+enet_rmse
+```
+
+
+## MARS model 
+
+Resampling the data by encoding dummy variables to be able to use a MARS model. 
+
+```{r}
+set.seed(2024)
+df_dummies <- data.frame(model.matrix(~ . - 1, data = dat[, c("gender", "race", "smoking", "hypertension", "diabetes", "vaccine", "severity", "study")]),
+                         age = dat$age,
+                         height = dat$height,
+                         weight = dat$weight,
+                         bmi = dat$bmi,
+                         SBP = dat$SBP,
+                         LDL = dat$LDL,
+                         recovery_time = dat$recovery_time)
+
+data_mars <- df_dummies
+
+#training
+data_train_mars <- data_mars[tRows, ]
+mars_x <- model.matrix(recovery_time~.,data_mars)[tRows,-1]
+mars_y<- data_mars$recovery_time[tRows]
+
+# test
+data_test_mars <- data_mars[-tRows, ]
+## matrix of predictors
+mars_x2 <- model.matrix(recovery_time~.,data_mars)[-tRows,-1]
+## vector of response
+mars_y2 <- data_mars$recovery_time[-tRows]
+```
+
+Using newly created data to train a MARS model. 
+
+```{r}
+set.seed(2024)
+mars_grid <- expand.grid(degree = 1:3, 
+                         nprune = 2:17) 
+
+mars_model <- train(mars_x, mars_y,
+                  method = "earth",
+                  tuneGrid = mars_grid,
+                  trControl = ctrl)
+print(plot(mars_model))
+```
+
+Find the RMSE 
+
+```{r}
+mars_pred <- predict(mars_model, newdata = mars_x2) 
+mars_rmse <- sqrt(mean((mars_pred - data_test_mars$recovery_time)^2))
+mars_rmse
+
+```
