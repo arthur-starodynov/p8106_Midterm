@@ -26,14 +26,14 @@ set.seed(2024)
 ```
 
 ```{r}
-library(summarytools)
-st_options(plain.ascii = FALSE,
-           style = "rmarkdown",
-           dfSummary.silent = TRUE,
-           footnote = NA,
-           subtitle.emphasis = FALSE)
+#library(summarytools)
+#st_options(plain.ascii = FALSE,
+           #style = "rmarkdown",
+           #dfSummary.silent = TRUE,
+           #footnote = NA,
+           #subtitle.emphasis = FALSE)
 
-dfSummary(data[,-1])
+#dfSummary(data[,-1])
 
 
 ```
@@ -266,5 +266,32 @@ Finding the RMSE:
 GAM_pred <- predict(GAM_model, newdata = x2)
 GAM_rmse <- sqrt(mean((GAM_pred - data_test$recovery_time)^2))
 GAM_rmse
+
+```
+
+
+
+# Model Selection
+
+For choosing the best model, we assessed the RMSE and checked which model had the lowest RMSE. This indicates that the model is the best performing due to a low prediction error. Models with high RMSE has high prediction error meaning they are worse models. 
+
+```{r}
+set.seed(2024)
+
+resample_data <- resamples(list(
+  lm = linear_model,
+  lasso = lasso_model,
+  enet = enet_model,
+  pls = pls_model,
+  gam = GAM_model,
+  mars = mars_model
+  ))
+
+summary(resample_data)
+
+bwplot(resample_data, 
+       metric = "RMSE",
+       main = "Figure 2. Model Comparison Plot Using RMSE")
+
 
 ```
