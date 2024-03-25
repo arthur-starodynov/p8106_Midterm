@@ -15,6 +15,7 @@ library(caret)
 library(mgcv)
 library(earth)
 library(leaps)
+library(corrplot)
 ```
 
 # Load in the data and explore the data. 
@@ -87,7 +88,6 @@ featurePlot(x = data_train_viz[ ,1:14],
             main = "Figure 1. Lattice Plot",
             type = c("p", "smooth"))
 ```
-
 
 
 
