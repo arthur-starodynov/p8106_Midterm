@@ -1,0 +1,146 @@
+---
+title: "Analysis"
+author: "Arthur Starodynov, Ekaterina Hofrenning, Lauren Lazaro"
+date: "2024-03-24"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(caret)
+library(mgcv)
+library(earth)
+library(leaps)
+```
+
+# Load in the data and explore the data. 
+
+```{r}
+load("data/recovery.Rdata")
+head(dat)
+set.seed(2024)
+```
+
+```{r}
+library(summarytools)
+st_options(plain.ascii = FALSE,
+           style = "rmarkdown",
+           dfSummary.silent = TRUE,
+           footnote = NA,
+           subtitle.emphasis = FALSE)
+
+dfSummary(data[,-1])
+
+
+```
+
+```{r}
+data <- dat %>%
+  select(-id)   # removing the id variable from the data 
+set.seed(2024)
+
+
+tRows <- createDataPartition(dat$recovery_time, p = 0.7, list = FALSE)
+# training data
+data_train <- data[tRows, ]
+x <- model.matrix(recovery_time~.,data)[tRows,-1]
+y <- data$recovery_time[tRows]
+
+#Test data
+data_test <- data[-tRows, ]
+x2 <- model.matrix(recovery_time~.,data)[-tRows,-1]
+y2 <- data$recovery_time[-tRows]
+```
+
+
+# Exploring the data set : 
+
+```{r}
+data_train_viz <- data_train %>%
+  mutate(study = case_when( # turn study (character variable) into a numeric variable
+    study == "A" ~ 1,
+    study == "B" ~ 2,
+    study == "C" ~ 3))
+non_numeric_cols <- sapply(data_train_viz, function(x) !is.numeric(x))
+# Convert non-numeric columns to numeric
+data_train_viz[, non_numeric_cols] <- lapply(data_train_viz[, non_numeric_cols], as.numeric)
+```
+
+```{r, warning=FALSE, message=FALSE}
+theme1 <- trellis.par.get()
+theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
+theme1$plot.symbol$pch <- 16
+theme1$plot.line$col <- rgb(.8, .1, .1, 1)
+theme1$plot.line$lwd <- 2
+theme1$strip.background$col <- rgb(.0, .2, .6, .2)
+trellis.par.set(theme1)
+
+featurePlot(x = data_train_viz[ ,1:14],
+            y = data_train_viz[ ,15],
+            plot = "scatter",
+            span = .5,
+            labels = c("Predictors (Xs)", "COVID-19 Recovery Time (Y)"),
+            main = "Figure 1. Lattice Plot",
+            type = c("p", "smooth"))
+```
+
+
+
+
+# Training models
+
+Training Various models to see which will perform the best. 
+
+LGM: 
+```{r}
+set.seed(2024)
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 5) # Using the best rule 
+linear_model <- train(recovery_time ~ ., 
+               data = data_train,
+               method = "lm", 
+               trControl = ctrl)
+summary(linear_model)
+
+
+
+```
+
+Finding the RMSE: 
+
+```{r}
+linear_pred <- predict(linear_model, newdata = data_test)
+linear_rmse <- sqrt(mean((linear_pred - data_test$recovery_time)^2))
+linear_rmse
+
+```
+
+We can see that the RMSE is 19.858 for the Generalized linear model. 
+
+
+## Lasso Model 
+
+```{r}
+set.seed(2024)
+lasso_model <- train(x, y,
+                   method = "glmnet",
+                   tuneGrid = expand.grid(alpha = 1,
+                                          lambda = exp(seq(-1, 5, length = 100))),
+                   trControl = ctrl)
+
+plot(lasso_model, xTrans = log)
+tuning_param <- lasso_model$bestTune
+coef(lasso_model$finalModel, lasso_model$bestTune$lambda)
+```
+
+Finding RMSE of the Lasso model: 
+
+```{r}
+lasso_pred <- predict(lasso_model, newdata = x2)
+lasso_rmse <- sqrt(mean((lasso_pred - data_test$recovery_time)^2))
+lasso_rmse
+
+```
