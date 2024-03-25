@@ -243,3 +243,28 @@ mars_rmse <- sqrt(mean((mars_pred - data_test_mars$recovery_time)^2))
 mars_rmse
 
 ```
+
+
+## GAM Model
+
+```{r}
+set.seed(2024)
+
+GAM_model <- train(x, y,
+                 method = "gam",
+                 trControl = ctrl,
+                 control = gam.control(maxit = 150)) # <- adjusted for maxit failure
+
+print(plot(GAM_model))
+summary(GAM_model$finalModel)
+
+```
+
+Finding the RMSE:
+
+```{r}
+GAM_pred <- predict(GAM_model, newdata = x2)
+GAM_rmse <- sqrt(mean((GAM_pred - data_test$recovery_time)^2))
+GAM_rmse
+
+```
