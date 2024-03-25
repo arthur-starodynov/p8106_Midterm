@@ -297,9 +297,24 @@ bwplot(resample_data,
 ```
 
 
+# Results
+
 ```{r}
 summary(mars_model$finalModel)
 summary(GAM_model$finalModel)
 ```
 
 Although we see through the RMSE comparison that the mean and median RMSE of the mars model was the smallest when we compare the number of predictors used for the mars model was 2, we know that this would not be a good and accurate model for future use. Hence, we want to use the GAM model for any further comparison. 
+
+
+
+# Appendix / GAM plots
+
+```{r}
+gam.m1 <- gam(recovery_time ~ gender + race + smoking + hypertension + 
+    diabetes + vaccine + severity + study + s(age) + s(SBP) + 
+    s(LDL) + s(bmi) + s(height) + s(weight), data = data_train)
+
+plot(gam.m1)
+
+```
