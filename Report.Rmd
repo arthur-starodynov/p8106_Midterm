@@ -1,0 +1,289 @@
+---
+title: "P8106 Midterm Report"
+author: "Arthur Starodynov, Ekaterina Hofrenning, Lauren Lazaro"
+date: "2024-03-26"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+```{r, echo=F, warning=F, message=F, error=F}
+library(tidyverse)
+library(caret)
+library(mgcv)
+library(earth)
+library(leaps)
+library(corrplot)
+library(gtsummary)
+```
+
+# Introduction
+
+The COVID-19 illness was first identified in late 2019, and quickly spread into a worldwide yearslong pandemic. A study was designed to combine three cohort studies following participants for multiple years. The collection of medical history data and personal characteristics enables the study of risk factors for extended recovery time. In this paper, we will investigate the medical and demographic risk factors for extended recovery times through training several predictive models. 
+
+
+# Exploratory analysis and data visualization
+
+Table 1 reports the demographic and medical characteristics of the cohort. The cohort is composed of 3000 participants, 2000 from study A and 100 from study B. The patients have a mean age of 60.2, mean recovery time of 42 days, and 60% vaccination rate. Additionally, there is an approximately equal balance of the genders, the patients are primarily white at 66%, and half of the cohort has hypertension. Overall, it appears that this cohort is slightly older and on the unhealthier side.
+
+```{r, echo=F, warning=F, message=F, error=F}
+load("data/recovery.Rdata")
+set.seed(2024)
+
+data <- dat %>% select(-id)   # removing the id variable from the data 
+
+tRows <- createDataPartition(dat$recovery_time, p = 0.7, list = FALSE)
+# training data
+data_train <- data[tRows, ]
+x <- model.matrix(recovery_time~.,data)[tRows,-1]
+y <- data$recovery_time[tRows]
+
+#Test data
+data_test <- data[-tRows, ]
+x2 <- model.matrix(recovery_time~.,data)[-tRows,-1]
+y2 <- data$recovery_time[-tRows]
+
+data_train_viz <- data_train %>%
+  mutate(study = case_when( # turn study (character variable) into a numeric variable
+    study == "A" ~ 1,
+    study == "B" ~ 2,
+    study == "C" ~ 3))
+non_numeric_cols <- sapply(data_train_viz, function(x) !is.numeric(x))
+# Convert non-numeric columns to numeric
+data_train_viz[, non_numeric_cols] <- lapply(data_train_viz[, non_numeric_cols], as.numeric)
+```
+
+```{r}
+# Create a Table 1.
+table1_df <-
+data %>%
+  mutate(across(c(gender, race, smoking, hypertension, diabetes, vaccine, severity, study), factor)) %>%
+  mutate(gender = if_else(gender == 1, "Male", "Female"),
+         race = case_when(race == 1 ~ "White",
+                          race == 2 ~ "Asian",
+                          race == 3 ~ "Black",
+                          race == 4 ~ "Hispanic"),
+         smoking = case_when(smoking == 1 ~ "Never Smoker",
+                             smoking == 2 ~ "Former Smoker",
+                             smoking == 3 ~ "Current Smoker")) %>%
+  rename_with(str_to_title) %>%
+  rename(BMI = Bmi, SBP = Sbp, LDL = Ldl)
+
+table1 <- 
+tbl_summary(table1_df,
+            type = list(Hypertension ~ "dichotomous",
+                        Diabetes ~ "dichotomous",
+                        Vaccine ~ "dichotomous",
+                        Severity ~ "dichotomous",
+                        Study ~ "categorical"),
+            statistic = all_continuous() ~ "{mean} ({sd})") %>%
+  modify_caption("**Table 1. Patient Characteristics**")
+
+table1
+```
+
+
+Next, we visualized the individual relationships between COVID-19 recovery time and the available predictors through scatter plots for the continuous variables and violin plots for the categorical variables. Figure1 reports the scatter plots and Figure 2 reports the violin plots. The relationships between the continuous variables and recovery time appear to be mostly linear, with some possible non-linearity between BMI and COVID-19 recovery time. The violin plots show that the unhealthier patients tend to see longer recovery times.
+
+
+```{r}
+theme1 <- trellis.par.get()
+theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
+theme1$plot.symbol$pch <- 16
+theme1$plot.line$col <- rgb(.8, .1, .1, 1)
+theme1$plot.line$lwd <- 2
+theme1$strip.background$col <- rgb(.0, .2, .6, .2)
+trellis.par.set(theme1)
+
+# for continous variables:
+featurePlot(x = data %>% select(age, height, weight, bmi, SBP, LDL),
+            y = data[,15],
+            plot = "scatter",
+            span = .5,
+            labels = c("Predictors (Xs)", "COVID-19 Recovery Time (Y)"),
+            main = "Figure 1. Scatterplots",
+            type = c("p", "smooth"))
+```
+
+```{r, warning = F}
+# categorical variables:
+data %>%
+  select(recovery_time, gender, race, smoking, hypertension,
+         diabetes, vaccine, severity, study) %>%
+  mutate(across(gender:study, factor)) %>%
+  gather(Measure, Value, -recovery_time) %>%
+  ggplot(aes(x = Value,
+             y = recovery_time)) +
+  geom_violin() +
+  labs(y = "Recovery Time", x = "Level", title = "Figure 2. Violin Plots") +
+  facet_wrap(~ Measure, scales = "free_y")
+```
+
+# Model training
+
+We trained several different models in order to predict the time to recovery from COVID-19. We included all demographic and medical variables, including study because there might be important differences across study to account for. All models were trained on a training data set (70%), with 10-fold cross-validation. First, we used a simple linear model to predict recovery time. Linear models use least squares estimation and the assumptions of this model include: independent observations, homoscedasticity, and linearity. The common assumption of normally distributed errors is not needed. Next, we conducted a LASSO model, which adds a penalty term onto a normal linear model to shrink coefficients. We tuned this model using the "best" method, choosing the lowest test error, across a large grid of penalty values. Following this, we conducted a partial least squares (PLS) model. PLS models are a supervised dimension reduction procedure where the response variable is used to create new features that approximate the old features in addition to being related to the response. Next, we conducted an elastic net model, which combines the regularization process of a ridge regression penalty and the feature selection of a LASSO model penalty. We trained this model across a large grid of alpha and lambda values. Following this, we conducted a Multivariate Adaptive Regression Splines (MARS) model to consider non-linearity. This is an extension of linear models but makes no assumption about the relationship between the predictors and outcome, essentially creating a piece-wise linear model. We trained this model across grids of pruning parameter and degree parameter. Finally, we conducted a Generalized Additive Model (GAM) model which uses smooth functions to help model complex relationships between predictors and outcome. This can be described as a penalized generalized linear model. In order to determine the best prediction model, we tested the models on the testing data set and chose the model with the lowest cross-validated test error; the chosen error statistic was Root Mean Squared Error (RMSE). 
+
+
+```{r, echo=F, warning=F, message=F, error=F}
+set.seed(2024)
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 5) # Using the best rule 
+linear_model <- train(recovery_time ~ ., 
+               data = data_train,
+               method = "lm", 
+               trControl = ctrl)
+# summary(linear_model)
+
+linear_pred <- predict(linear_model, newdata = data_test)
+linear_rmse <- sqrt(mean((linear_pred - data_test$recovery_time)^2))
+# linear_rmse
+```
+
+```{r}
+set.seed(2024)
+lasso_model <- train(x, y,
+                   method = "glmnet",
+                   tuneGrid = expand.grid(alpha = 1,
+                                          lambda = exp(seq(-1, 5, length = 100))),
+                   trControl = ctrl)
+
+# plot(lasso_model, xTrans = log)
+tuning_param <- lasso_model$bestTune
+# coef(lasso_model$finalModel, lasso_model$bestTune$lambda)
+
+lasso_pred <- predict(lasso_model, newdata = x2)
+lasso_rmse <- sqrt(mean((lasso_pred - data_test$recovery_time)^2))
+# lasso_rmse
+```
+
+
+```{r}
+set.seed(2024)
+pls_model <- train(x, y,
+                 method = "pls",
+                 tuneGrid = data.frame(ncomp = 1:17),
+                 trControl = ctrl,
+                 preProcess = c("center", "scale"))
+# print(plot(pls_model))
+
+pls_pred <- predict(pls_model, newdata = x2)
+pls_rmse <- sqrt(mean((pls_pred - data_test$recovery_time)^2))
+# pls_rmse
+```
+
+```{r}
+set.seed(2024)
+enet_model <- train(x, y, 
+                  method = "glmnet",
+                  tuneGrid = expand.grid(alpha = seq(0, 1, length = 21),
+                                         lambda = exp(seq(2, -2, length = 50))),
+                  trControl = ctrl)
+# print(plot(enet_model))
+
+enet_pred <- predict(enet_model, newdata = x2)
+enet_rmse <- sqrt(mean((enet_pred - data_test$recovery_time)^2))
+```
+
+```{r}
+set.seed(2024)
+df_dummies <- data.frame(model.matrix(~ . - 1, data = dat[, c("gender", "race", "smoking", "hypertension", "diabetes", "vaccine", "severity", "study")]),
+                         age = dat$age,
+                         height = dat$height,
+                         weight = dat$weight,
+                         bmi = dat$bmi,
+                         SBP = dat$SBP,
+                         LDL = dat$LDL,
+                         recovery_time = dat$recovery_time)
+
+data_mars <- df_dummies
+
+#training
+data_train_mars <- data_mars[tRows, ]
+mars_x <- model.matrix(recovery_time~.,data_mars)[tRows,-1]
+mars_y<- data_mars$recovery_time[tRows]
+
+# test
+data_test_mars <- data_mars[-tRows, ]
+## matrix of predictors
+mars_x2 <- model.matrix(recovery_time~.,data_mars)[-tRows,-1]
+## vector of response
+mars_y2 <- data_mars$recovery_time[-tRows]
+
+set.seed(2024)
+mars_grid <- expand.grid(degree = 1:3, 
+                         nprune = 2:17) 
+
+mars_model <- train(mars_x, mars_y,
+                  method = "earth",
+                  tuneGrid = mars_grid,
+                  trControl = ctrl)
+# print(plot(mars_model))
+
+mars_pred <- predict(mars_model, newdata = mars_x2) 
+mars_rmse <- sqrt(mean((mars_pred - data_test_mars$recovery_time)^2))
+```
+
+```{r}
+set.seed(2024)
+GAM_model <- train(x, y,
+                 method = "gam",
+                 trControl = ctrl,
+                 control = gam.control(maxit = 150)) # <- adjusted for maxit failure
+
+# print(plot(GAM_model))
+# summary(GAM_model$finalModel)
+
+GAM_pred <- predict(GAM_model, newdata = x2)
+GAM_rmse <- sqrt(mean((GAM_pred - data_test$recovery_time)^2))
+```
+
+# Results
+In this section, report the final model you built to predict the time to recovery from COVID-19. Interpret the model and assess its performance.
+
+In order to choose the best model, we assessed the test RMSE and selected the model with the lowest RMSE (Figure 3). This indicates that the model is the best performing due to a low prediction error. Models with high RMSE have high prediction error meaning they are worse models. 
+
+
+```{r}
+set.seed(2024)
+
+resample_data <- resamples(list(
+  lm = linear_model,
+  lasso = lasso_model,
+  enet = enet_model,
+  pls = pls_model,
+  gam = GAM_model,
+  mars = mars_model
+  ))
+
+summary(resample_data)
+
+bwplot(resample_data, 
+       metric = "RMSE",
+       main = "Figure 3. Model Comparison Plot Using RMSE")
+```
+
+```{r}
+summary(mars_model$finalModel)
+summary(GAM_model$finalModel) 
+```
+
+Although we see through the RMSE comparison that the mean and median RMSE of the mars model was the smallest when we compare the number of predictors used for the mars model was 2, we know that this would not be a good and accurate model for future use. Hence, we want to use the GAM model for any further comparison. 
+
+```{r}
+gam.m1 <- gam(recovery_time ~ gender + race + smoking + hypertension + 
+    diabetes + vaccine + severity + study + s(age) + s(SBP) + 
+    s(LDL) + s(bmi) + s(height) + s(weight), data = data_train)
+
+plot(gam.m1)
+```
+
+
+# Conclusions
+In this section, summarize your findings from the model analysis and discuss the insights gained into predicting time to recovery from COVID-19.
+
+WRITE
+
+
+
+

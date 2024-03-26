@@ -1,0 +1,104 @@
+---
+title: "eih2108 analysis"
+author: "Ekaterina Hofrenning"
+date: "2024-03-26"
+output: html_document
+---
+
+```{r, echo=F, warning=F, message=F, error=F}
+library(tidyverse)
+library(caret)
+library(mgcv)
+library(earth)
+library(leaps)
+library(corrplot)
+library(gtsummary)
+set.seed(2024)
+```
+
+# Data Steps
+
+```{r}
+load("data/recovery.Rdata")
+data <- dat %>% select(-id) 
+tRows <- createDataPartition(dat$recovery_time, p = 0.7, list = FALSE)
+# Training data
+data_train <- data[tRows, ]
+x <- model.matrix(recovery_time~.,data)[tRows,-1]
+y <- data$recovery_time[tRows]
+# Testing data
+data_test <- data[-tRows, ]
+x2 <- model.matrix(recovery_time~.,data)[-tRows,-1]
+y2 <- data$recovery_time[-tRows]
+```
+
+
+# Exploration 
+
+```{r}
+data_train_viz <- data_train %>%
+  mutate(study = case_when(study == "A" ~ 1,
+                           study == "B" ~ 2,
+                           study == "C" ~ 3))
+non_numeric_cols <- sapply(data_train_viz, function(x) !is.numeric(x))
+# Convert non-numeric columns to numeric
+data_train_viz[, non_numeric_cols] <- lapply(data_train_viz[, non_numeric_cols], as.numeric)
+```
+
+```{r}
+theme1 <- trellis.par.get()
+theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
+theme1$plot.symbol$pch <- 16
+theme1$plot.line$col <- rgb(.8, .1, .1, 1)
+theme1$plot.line$lwd <- 2
+theme1$strip.background$col <- rgb(.0, .2, .6, .2)
+trellis.par.set(theme1)
+
+# for continous variables:
+featurePlot(x = data %>% select(age, height, weight, bmi, SBP, LDL),
+            y = data[,15],
+            plot = "scatter",
+            span = .5,
+            labels = c("Predictors (Xs)", "COVID-19 Recovery Time (Y)"),
+            main = "Figure 1. Scatterplots",
+            type = c("p", "smooth"))
+
+# categorical variables:
+data %>%
+  select(recovery_time, gender, race, smoking, hypertension,
+         diabetes, vaccine, severity, study) %>%
+  mutate(across(gender:study, factor)) %>%
+  gather(Measure, Value, -recovery_time) %>%
+  ggplot(aes(x = Value,
+             y = recovery_time)) +
+  geom_violin() +
+  labs(y = "Recovery Time", x = "Level", title = "Figure 2. Violin Plots") +
+  facet_wrap(~ Measure, scales = "free_y")
+```
+
+```{r}
+# Create a Table 1.
+table1_df <-
+data %>%
+  mutate(across(c(gender, race, smoking, hypertension, diabetes, vaccine, severity, study), factor)) %>%
+  mutate(gender = if_else(gender == 1, "Male", "Female"),
+         race = case_when(race == 1 ~ "White",
+                          race == 2 ~ "Asian",
+                          race == 3 ~ "Black",
+                          race == 4 ~ "Hispanic"),
+         smoking = case_when(smoking == 1 ~ "Never Smoker",
+                             smoking == 2 ~ "Former Smoker",
+                             smoking == 3 ~ "Current Smoker")) %>%
+  rename_with(str_to_title) %>%
+  rename(BMI = Bmi, SBP = Sbp, LDL = Ldl)
+
+tbl_summary(table1_df,
+            type = list(Hypertension ~ "dichotomous",
+                        Diabetes ~ "dichotomous",
+                        Vaccine ~ "dichotomous",
+                        Severity ~ "dichotomous",
+                        Study ~ "categorical"),
+            statistic = all_continuous() ~ "{mean} ({sd})") %>%
+  modify_caption("**Table 1. Patient Characteristics**")
+```
+
