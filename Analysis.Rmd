@@ -9,13 +9,14 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
-```{r}
+```{r, echo=F, warning=F, message=F, error=F}
 library(tidyverse)
 library(caret)
 library(mgcv)
 library(earth)
 library(leaps)
 library(corrplot)
+library(gtsummary)
 ```
 
 # Load in the data and explore the data. 
@@ -35,8 +36,6 @@ set.seed(2024)
            #subtitle.emphasis = FALSE)
 
 #dfSummary(data[,-1])
-
-
 ```
 
 ```{r}
@@ -71,7 +70,7 @@ non_numeric_cols <- sapply(data_train_viz, function(x) !is.numeric(x))
 data_train_viz[, non_numeric_cols] <- lapply(data_train_viz[, non_numeric_cols], as.numeric)
 ```
 
-```{r, warning=FALSE, message=FALSE}
+```{r}
 theme1 <- trellis.par.get()
 theme1$plot.symbol$col <- rgb(.2, .4, .2, .5)
 theme1$plot.symbol$pch <- 16
@@ -80,7 +79,8 @@ theme1$plot.line$lwd <- 2
 theme1$strip.background$col <- rgb(.0, .2, .6, .2)
 trellis.par.set(theme1)
 
-featurePlot(x = data_train_viz[ ,1:14],
+# for continous variables:
+featurePlot(x = data_train_viz %>% select(age, height, weight, bmi, SBP, LDL),
             y = data_train_viz[ ,15],
             plot = "scatter",
             span = .5,
@@ -90,8 +90,11 @@ featurePlot(x = data_train_viz[ ,1:14],
 ```
 
 
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> 8d60aef84a87065beb8632d98d5e0094c4d03360
 # Training models
 
 Training Various models to see which will perform the best. 
@@ -105,18 +108,14 @@ linear_model <- train(recovery_time ~ .,
                method = "lm", 
                trControl = ctrl)
 summary(linear_model)
-
-
-
 ```
 
 Finding the RMSE: 
 
-```{r}
+```{r, echo=F, warning=F, message=F, error=F}
 linear_pred <- predict(linear_model, newdata = data_test)
 linear_rmse <- sqrt(mean((linear_pred - data_test$recovery_time)^2))
 linear_rmse
-
 ```
 
 We can see that the RMSE is 19.858 for the Generalized linear model. 
