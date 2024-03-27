@@ -26,7 +26,7 @@ The COVID-19 illness was first identified in late 2019, and quickly spread into 
 
 # Exploratory analysis and data visualization
 
-Table 1 reports the demographic and medical characteristics of the cohort. The cohort is composed of 3000 participants, 2000 from study A and 100 from study B. The patients have a mean age of 60.2, mean recovery time of 42 days, and 60% vaccination rate. Additionally, there is an approximately equal balance of the genders, the patients are primarily white at 66%, and half of the cohort has hypertension. Overall, it appears that this cohort is slightly older and on the unhealthier side.
+Table 1 reports the demographic and medical characteristics of the cohort. The cohort is composed of 3000 participants, 2000 from study A and 100 from study B. The patients have a mean age of 60.2, mean recovery time of 42 days, and 60% vaccination rate. Additionally, there is an approximately equal balance of the genders, the patients are primarily white at 66%, and half of the cohort has hypertension. Overall, it appears that this cohort is slightly older and on the unhealthier side. We set the seed to 2024 for reproducibility of our models. 
 
 ```{r, echo=F, warning=F, message=F, error=F}
 load("data/recovery.Rdata")
@@ -239,9 +239,9 @@ GAM_rmse <- sqrt(mean((GAM_pred - data_test$recovery_time)^2))
 ```
 
 # Results
-In this section, report the final model you built to predict the time to recovery from COVID-19. Interpret the model and assess its performance.
 
-In order to choose the best model, we assessed the test RMSE and selected the model with the lowest RMSE (Figure 3). This indicates that the model is the best performing due to a low prediction error. Models with high RMSE have high prediction error meaning they are worse models. 
+In order to assess which model performed the best, comparing the RMSE was the best method. A model with a low RMSE indicates the best performing model(low prediction error), hence the opposite with a high RMSE. 
+
 
 
 ```{r}
@@ -268,21 +268,15 @@ summary(mars_model$finalModel)
 summary(GAM_model$finalModel) 
 ```
 
-Although we see through the RMSE comparison that the mean and median RMSE of the mars model was the smallest when we compare the number of predictors used for the mars model was 2, we know that this would not be a good and accurate model for future use. Hence, we want to use the GAM model for any further comparison. 
 
-```{r}
-gam.m1 <- gam(recovery_time ~ gender + race + smoking + hypertension + 
-    diabetes + vaccine + severity + study + s(age) + s(SBP) + 
-    s(LDL) + s(bmi) + s(height) + s(weight), data = data_train)
+According to Figure 3, the linear model was the worst performing followed by PLS, Lasso, elastic net, GAM, and finally, the MARS model, which had the lowest median and mean RMSE(showing best performance). However, the final model for predicting time to recovery from COVID-19 was our GAM model. Although technically the MARS model "performed the best" when looking at the formula used, it should be noted that the MARS model only used 2 predictors, which would not be an accurate depiction of the recovery time with COVID-19. Therefore, when compared to the GAM model, which had a slightly higher mean and median RMSE, had to be selected as the final model for comprehensivly predicting time to recovery from COVID-19 within the study.
 
-plot(gam.m1)
-```
-
+The final GAM model has recovery_time as the outcome with "White" (race = 0) as a reference category, with similar usage for "Never Smoker" refrencing smoking, and "Study A" referencing study predictor. When looking at the formula we notice s() around some of the variable names which will indicate that a smoothing function was applied on those variables. In addition any term with an * shows a statistically significant term at 5% level of significance. Taking the GAM model into consideration we see that all the predictors show a 36.7% of the deviance in COVID 19 recovery time. The RMSE (training error) of the GAM model was about 16.0, showing that on average the model's prediction on training data will deviate from the actual data around 16.0 units, meanwhile while using the test data we see that the RMSE was around 18.5 shows that on data that the model has never seen before is just a little bit worse than on the testing set.  
 
 # Conclusions
-In this section, summarize your findings from the model analysis and discuss the insights gained into predicting time to recovery from COVID-19.
 
-WRITE
+The final GAM model showed several factors that were statistically significant in predicting the recovery time from COVID-19. It is seen that on average, having a history of former or current smoking, having hypertension, and experiencing severe COVID-19 infections were shown to have a longer predicted recovery time. In addition, with the inclusion of the study predictor, it is seen that being in study B was also associated with having a longer recovery time in comparison to those in study A. It is seen that being male and being vaccinated was shown to have a shorter recovery time. The model did not show any significant associations with diabetes or race predictors. Finally, BMI, height,weight, and age were also significantly associated with predicting the recovery time from COVID-19. This model and data can give us an insight into whhat predictors should be looked at closer when looking at COVID-19 recovery time. 
+
 
 
 
