@@ -240,7 +240,7 @@ GAM_rmse <- sqrt(mean((GAM_pred - data_test$recovery_time)^2))
 
 # Results
 
-In order to assess which model performed the best, comparing the RMSE was the best method. A model with a low RMSE indicates the best performing model(low prediction error), hence the opposite with a high RMSE. 
+In order to assess which model performed the best, comparing the RMSE was the best method. A model with a low RMSE indicates the best performing model(low prediction error), hence the opposite with a high RMSE.
 
 
 
@@ -256,7 +256,12 @@ resample_data <- resamples(list(
   mars = mars_model
   ))
 
-summary(resample_data)
+# summary(resample_data)
+
+resample_data$values %>%
+  select(`lm~RMSE`, `lasso~RMSE`, `enet~RMSE`, `pls~RMSE`, `gam~RMSE`, `mars~RMSE`) %>% 
+  summarise(across(1:6, median)) %>%
+  kableExtra::kable(caption = "Median Resampled RMSE's")
 
 bwplot(resample_data, 
        metric = "RMSE",
