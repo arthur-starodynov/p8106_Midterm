@@ -306,6 +306,7 @@ summary(GAM_model$finalModel)
 
 Although we see through the RMSE comparison that the mean and median RMSE of the mars model was the smallest when we compare the number of predictors used for the mars model was 2, we know that this would not be a good and accurate model for future use. Hence, we want to use the GAM model for any further comparison. 
 
+All of these factors together explain 44.2% of the deviance in COVID-19 recovery time. Additionally, the model's training error (RMSE using the 
 
 
 # Appendix / GAM plots
