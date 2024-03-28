@@ -102,3 +102,12 @@ tbl_summary(table1_df,
   modify_caption("**Table 1. Patient Characteristics**")
 ```
 
+# Creat nice table for resamples summary
+
+```{r}
+resample_data$values %>%
+  select(`lm~RMSE`, `lasso~RMSE`, `enet~RMSE`, `pls~RMSE`, `gam~RMSE`, `mars~RMSE`) %>% 
+  summarise(across(1:6, median)) %>%
+  kableExtra::kable(caption = "Median RMSE")
+```
+
