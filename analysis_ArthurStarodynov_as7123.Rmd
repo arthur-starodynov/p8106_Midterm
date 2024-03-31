@@ -1,6 +1,6 @@
 ---
 title: "Analysis"
-author: "Arthur Starodynov, Ekaterina Hofrenning, Lauren Lazaro"
+author: "Arthur Starodynov"
 date: "2024-03-24"
 output: pdf_document
 ---
